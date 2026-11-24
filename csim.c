@@ -49,17 +49,59 @@ static void usage(const char *prog)
 }
 
 /*
- * TODO: Simulate one data access at addr.
- * Extract the set index and tag, then update the cache state and counters
- * for a hit, a miss, or a miss with an LRU eviction. An eviction also counts
- * as a miss. Handle s == 0 and s + b == 64 without shifting by 64 bits.
- * If verbose is set, append " hit", " miss", or " miss eviction" without
- * a newline. replay() prints the trace entry and the trailing newline.
+ * Simulate one data access.  The tag is obtained by shifting right s+b;
+ * when s+b is 64, all tags are zero and the (otherwise invalid) shift is
+ * unnecessary.  Each access advances the logical clock, which is also the
+ * LRU timestamp stored in the resident line.
  */
 static void access_cache(uint64_t addr)
 {
-    (void)addr;
-    (void)tick;
+    uint64_t set_index;
+    uint64_t tag = 0;
+    line_t *set;
+    line_t *lru;
+    int line;
+
+    if (s == 0) {
+        set_index = 0;
+    } else {
+        set_index = (addr >> b) & (((uint64_t)1 << s) - 1);
+    }
+    if (s + b < 64)
+        tag = addr >> (s + b);
+
+    set = cache + set_index * (size_t)E;
+    tick++;
+    lru = &set[0];
+    for (line = 0; line < E; line++) {
+        if (!set[line].valid) {
+            /* Empty lines precede an eviction; the first one is used. */
+            if (!lru->valid || set[line].last_used < lru->last_used)
+                lru = &set[line];
+            continue;
+        }
+        if (set[line].tag == tag) {
+            set[line].last_used = tick;
+            hits++;
+            if (verbose)
+                printf(" hit");
+            return;
+        }
+        if (lru->valid && set[line].last_used < lru->last_used)
+            lru = &set[line];
+    }
+
+    misses++;
+    if (lru->valid) {
+        evictions++;
+        if (verbose)
+            printf(" miss eviction");
+    } else if (verbose) {
+        printf(" miss");
+    }
+    lru->valid = 1;
+    lru->tag = tag;
+    lru->last_used = tick;
 }
 
 /* replay - run every data access in the trace through the cache */

@@ -16,3 +16,16 @@ trace.tmp
 .marker
 __pycache__/
 *.dSYM
+
+# Local verification inputs, virtual machines, and generated artifacts
+verification/vm/
+verification/*.tar.gz
+verification/*.o
+verification/*.so
+verification/*.dylib
+verification/csim_mac
+verification/trans_tracegen
+verification/mul_tracegen
+verification/mul_testlib.*
+verification/solver_sim
+verification/csim_random.trace
